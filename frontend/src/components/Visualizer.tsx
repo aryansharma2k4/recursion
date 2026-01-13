@@ -4,10 +4,15 @@ import * as PIXI from 'pixi.js';
 import * as d3 from 'd3';
 
 // --- 1. DEFINING THE SHAPES (INTERFACES) ---
+// We explicitly add x, y, fx, fy here to stop TypeScript complaints
 export interface NodeData extends d3.SimulationNodeDatum {
   id: string;
   name: string;
   type: 'folder' | 'file';
+  x?: number;
+  y?: number;
+  fx?: number | null;
+  fy?: number | null;
 }
 
 export interface LinkData extends d3.SimulationLinkDatum<NodeData> {
@@ -20,7 +25,6 @@ interface VisualizerProps {
     nodes: NodeData[];
     links: LinkData[];
   } | null;
-  // This function is called when a user clicks a node
   onNodeClick: (node: NodeData) => void;
 }
 
@@ -43,19 +47,24 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => 
 
   const simulation = useRef<d3.Simulation<NodeData, LinkData> | null>(null);
 
-  // --- SETUP SIMULATION ---
   useEffect(() => {
-    setDimensions({ width: window.innerWidth, height: window.innerHeight });
+    // Set initial dimensions
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    setDimensions({ width: w, height: h });
 
     simulation.current = d3.forceSimulation<NodeData, LinkData>()
       .force('charge', d3.forceManyBody().strength(-300))
-      .force('link', d3.forceLink<NodeData, LinkData>().id((d) => d.id).distance(100))
-      .force('center', d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2))
+      // EXPLICIT TYPE FIX: (d: NodeData)
+      .force('link', d3.forceLink<NodeData, LinkData>().id((d: NodeData) => d.id).distance(100))
+      .force('center', d3.forceCenter(w / 2, h / 2))
       .force('collide', d3.forceCollide(NODE_RADIUS + 10));
 
     const handleResize = () => {
-        setDimensions({ width: window.innerWidth, height: window.innerHeight });
-        simulation.current?.force('center', d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2));
+        const newW = window.innerWidth;
+        const newH = window.innerHeight;
+        setDimensions({ width: newW, height: newH });
+        simulation.current?.force('center', d3.forceCenter(newW / 2, newH / 2));
         simulation.current?.alpha(0.3).restart();
     };
     
@@ -71,22 +80,15 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => 
     };
   }, []);
 
-  // --- UPDATE DATA ---
   useEffect(() => {
     if (!initialData || !simulation.current) return;
 
-    // IMPORTANT: D3 mutates data, so we must clone existing state to avoid React errors
-    // But we must NOT clone already-simulation-bound nodes (to keep x/y positions)
-    
-    // Simple strategy: Merge new data into existing simulation nodes
     const existingNodesMap = new Map(nodes.map(n => [n.id, n]));
     
     const newNodes = initialData.nodes.map(n => {
-        // If we already have this node, keep its position (x,y,vx,vy)
         if (existingNodesMap.has(n.id)) {
             return existingNodesMap.get(n.id)!;
         }
-        // If it's new, D3 will assign a start position
         return { ...n };
     });
 
@@ -119,6 +121,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => 
             const source = link.source as NodeData;
             const target = link.target as NodeData;
             
+            // Safe access because we defined x? and y? in the interface
             if (source.x !== undefined && source.y !== undefined && target.x !== undefined && target.y !== undefined) {
               g.moveTo(source.x, source.y);
               g.lineTo(target.x, target.y);
@@ -139,7 +142,6 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => 
   );
 };
 
-// --- 3. SUB-COMPONENT FOR DRAGGING ---
 interface DraggableNodeProps {
     node: NodeData;
     simulation: d3.Simulation<NodeData, LinkData> | null;
@@ -153,8 +155,9 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeC
     isDragging.current = true;
     if (simulation) {
         simulation.alphaTarget(0.3).restart();
-        node.fx = node.x;
-        node.fy = node.y;
+        // Safe access to fx/fy/x/y
+        if (node.x !== undefined) node.fx = node.x;
+        if (node.y !== undefined) node.fy = node.y;
     }
   };
 
@@ -176,7 +179,6 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeC
   };
 
   const handleTap = () => {
-      // Only fire click if not dragging
       onNodeClick(node);
   }
 
@@ -189,7 +191,7 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeC
       onpointermove={onDragMove}
       onpointerup={onDragEnd}
       onpointerupoutside={onDragEnd}
-      onpointertap={handleTap} // Tap/Click event
+      onpointertap={handleTap}
       cursor="pointer"
     >
       <Graphics
