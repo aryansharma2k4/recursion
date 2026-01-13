@@ -3,9 +3,6 @@ import Visualizer, { NodeData, LinkData } from './components/Visualizer';
 import { ReadDir } from "../wailsjs/go/main/App"; 
 
 function App() {
-  // CONFIG: Change this to a valid path on your machine
-  // Example Windows: "C:\\Users\\aryan"
-  // Example Linux: "/home/aryan"
   const ROOT_PATH = "C:\\Users\\aryan"; 
   
   const [graphData, setGraphData] = useState<{ nodes: NodeData[]; links: LinkData[] }>({
