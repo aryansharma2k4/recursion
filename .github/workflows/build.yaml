@@ -3,11 +3,9 @@ name: recursion
 on:
   push:
     tags:
-      - 'v*'  # Only run when you push a tag like v1.0.0
+      - 'v*'
 
 env:
-  # Replace with your actual Github username and repo name if needed
-  # but usually automatic.
   GITHUB_TOKEN: ${{ secrets.RECURSION_GITHUB_TOKEN }}
 
 jobs:
@@ -16,10 +14,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  #  UPDATED to v4
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5  #  UPDATED to v5 (recommended)
         with:
           go-version: '1.21'
 
@@ -27,7 +25,7 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4 # UPDATED to v4
         with:
           node-version: 18
 
@@ -39,15 +37,12 @@ jobs:
 
       - name: Create DMG
         run: |
-          # Install a tool to make DMGs
           brew install create-dmg
-          
-          # Create the folder structure for the DMG
           mkdir -p build/bin
           
-          # Run create-dmg
+          # Create DMG named 'recursion.dmg'
           create-dmg \
-            --volname "FileVisualizer" \
+            --volname "Recursion" \
             --volicon "build/appicon.icns" \
             --window-pos 200 120 \
             --window-size 800 400 \
@@ -55,11 +50,11 @@ jobs:
             --icon "recursion.app" 200 190 \
             --hide-extension "recursion.app" \
             --app-drop-link 600 185 \
-            "build/bin/FileVisualizer.dmg" \
+            "build/bin/recursion.dmg" \
             "build/bin/recursion.app"
 
       - name: Upload DMG Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  #  UPDATED to v4 (Crucial Fix)
         with:
           name: macos-dmg
-          path: build/bin/FileVisualizer.dmg
+          path: build/bin/recursion.dmg
