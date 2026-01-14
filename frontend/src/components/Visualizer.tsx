@@ -3,8 +3,6 @@ import { Stage, Container, Graphics, Text } from '@pixi/react';
 import * as PIXI from 'pixi.js';
 import * as d3 from 'd3';
 
-// --- 1. DEFINING THE SHAPES (INTERFACES) ---
-// We explicitly add x, y, fx, fy here to stop TypeScript complaints
 export interface NodeData extends d3.SimulationNodeDatum {
   id: string;
   name: string;
@@ -25,7 +23,8 @@ interface VisualizerProps {
     nodes: NodeData[];
     links: LinkData[];
   } | null;
-  onNodeClick: (node: NodeData) => void;
+    onNodeClick: (node: NodeData) => void;
+    onNodeRightClick?: (node: NodeData) => void;
 }
 
 const BLACK_BG = 0x111111;
@@ -38,7 +37,6 @@ const TEXT_STYLE = new PIXI.TextStyle({
   fontFamily: 'monospace',
 });
 
-// --- 2. THE MAIN COMPONENT ---
 const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [nodes, setNodes] = useState<NodeData[]>([]);
@@ -48,14 +46,12 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => 
   const simulation = useRef<d3.Simulation<NodeData, LinkData> | null>(null);
 
   useEffect(() => {
-    // Set initial dimensions
     const w = window.innerWidth;
     const h = window.innerHeight;
     setDimensions({ width: w, height: h });
 
     simulation.current = d3.forceSimulation<NodeData, LinkData>()
       .force('charge', d3.forceManyBody().strength(-300))
-      // EXPLICIT TYPE FIX: (d: NodeData)
       .force('link', d3.forceLink<NodeData, LinkData>().id((d: NodeData) => d.id).distance(100))
       .force('center', d3.forceCenter(w / 2, h / 2))
       .force('collide', d3.forceCollide(NODE_RADIUS + 10));
@@ -121,7 +117,6 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => 
             const source = link.source as NodeData;
             const target = link.target as NodeData;
             
-            // Safe access because we defined x? and y? in the interface
             if (source.x !== undefined && source.y !== undefined && target.x !== undefined && target.y !== undefined) {
               g.moveTo(source.x, source.y);
               g.lineTo(target.x, target.y);
@@ -146,6 +141,7 @@ interface DraggableNodeProps {
     node: NodeData;
     simulation: d3.Simulation<NodeData, LinkData> | null;
     onNodeClick: (node: NodeData) => void;
+    onNodeRightClick?: (node: NodeData) => void;
 }
 
 const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeClick }) => {
@@ -155,7 +151,6 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeC
     isDragging.current = true;
     if (simulation) {
         simulation.alphaTarget(0.3).restart();
-        // Safe access to fx/fy/x/y
         if (node.x !== undefined) node.fx = node.x;
         if (node.y !== undefined) node.fy = node.y;
     }
