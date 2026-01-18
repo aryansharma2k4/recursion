@@ -23,8 +23,8 @@ interface VisualizerProps {
     nodes: NodeData[];
     links: LinkData[];
   } | null;
-    onNodeClick: (node: NodeData) => void;
-    onNodeRightClick?: (node: NodeData) => void;
+  onNodeClick: (node: NodeData) => void;
+  onNodeRightClick?: (node: NodeData) => void;
 }
 
 const BLACK_BG = 0x111111;
@@ -37,11 +37,15 @@ const TEXT_STYLE = new PIXI.TextStyle({
   fontFamily: 'monospace',
 });
 
-const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick, onNodeRightClick }) => {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [links, setLinks] = useState<LinkData[]>([]);
   const [, setTick] = useState(0);
+
+  const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
+  const isPanning = useRef(false);
+  const lastPanPosition = useRef({ x: 0, y: 0 });
 
   const simulation = useRef<d3.Simulation<NodeData, LinkData> | null>(null);
 
@@ -50,17 +54,16 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => 
     const h = window.innerHeight;
     setDimensions({ width: w, height: h });
 
+    setViewport({ x: w / 2, y: h / 2, scale: 1 });
+
     simulation.current = d3.forceSimulation<NodeData, LinkData>()
       .force('charge', d3.forceManyBody().strength(-300))
       .force('link', d3.forceLink<NodeData, LinkData>().id((d: NodeData) => d.id).distance(100))
-      .force('center', d3.forceCenter(w / 2, h / 2))
+      .force('center', d3.forceCenter(0, 0)) 
       .force('collide', d3.forceCollide(NODE_RADIUS + 10));
 
     const handleResize = () => {
-        const newW = window.innerWidth;
-        const newH = window.innerHeight;
-        setDimensions({ width: newW, height: newH });
-        simulation.current?.force('center', d3.forceCenter(newW / 2, newH / 2));
+        setDimensions({ width: window.innerWidth, height: window.innerHeight });
         simulation.current?.alpha(0.3).restart();
     };
     
@@ -94,46 +97,93 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick }) => 
     setLinks(newLinks);
 
     simulation.current.nodes(newNodes);
-    
     const linkForce = simulation.current.force('link') as d3.ForceLink<NodeData, LinkData>;
-    if (linkForce) {
-        linkForce.links(newLinks);
-    }
+    if (linkForce) linkForce.links(newLinks);
     
     simulation.current.alpha(1).restart();
   }, [initialData]);
 
-  return (
-    <Stage 
-      width={dimensions.width} 
-      height={dimensions.height} 
-      options={{ backgroundColor: BLACK_BG, antialias: true }}
-    >
-      <Graphics
-        draw={(g) => {
-          g.clear();
-          g.lineStyle(2, LINK_COLOR, 1);
-          links.forEach((link) => {
-            const source = link.source as NodeData;
-            const target = link.target as NodeData;
-            
-            if (source.x !== undefined && source.y !== undefined && target.x !== undefined && target.y !== undefined) {
-              g.moveTo(source.x, source.y);
-              g.lineTo(target.x, target.y);
-            }
-          });
-        }}
-      />
 
-      {nodes.map((node) => (
-        <DraggableNode 
-          key={node.id} 
-          node={node} 
-          simulation={simulation.current}
-          onNodeClick={onNodeClick}
-        />
-      ))}
-    </Stage>
+  const handleWheel = (e: React.WheelEvent) => {
+    const scaleFactor = 1.001 ** -e.deltaY; 
+    const newScale = Math.min(Math.max(viewport.scale * scaleFactor, 0.1), 5);
+
+    const rect = (e.target as Element).getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const newX = mouseX - (mouseX - viewport.x) * (newScale / viewport.scale);
+    const newY = mouseY - (mouseY - viewport.y) * (newScale / viewport.scale);
+
+    setViewport({ x: newX, y: newY, scale: newScale });
+  };
+
+  const onStageDown = (e: any) => {
+      isPanning.current = true;
+      lastPanPosition.current = { x: e.client.x, y: e.client.y };
+  };
+
+  const onStageMove = (e: any) => {
+      if (!isPanning.current) return;
+      
+      const dx = e.client.x - lastPanPosition.current.x;
+      const dy = e.client.y - lastPanPosition.current.y;
+
+      setViewport(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+      lastPanPosition.current = { x: e.client.x, y: e.client.y };
+  };
+
+  const onStageUp = () => {
+      isPanning.current = false;
+  };
+
+  return (
+    <div 
+        style={{ width: '100vw', height: '100vh', overflow: 'hidden' }} 
+        onWheel={handleWheel}
+    >
+        <Stage 
+        width={dimensions.width} 
+        height={dimensions.height} 
+        options={{ backgroundColor: BLACK_BG, antialias: true, resolution: 2 }}
+        onPointerDown={onStageDown}
+        onPointerMove={onStageMove}
+        onPointerUp={onStageUp}
+        onPointerLeave={onStageUp}
+        >
+        <Container 
+            x={viewport.x} 
+            y={viewport.y} 
+            scale={viewport.scale}
+        >
+            <Graphics
+                draw={(g) => {
+                g.clear();
+                g.lineStyle(2 / viewport.scale, LINK_COLOR, 1); 
+                links.forEach((link) => {
+                    const source = link.source as NodeData;
+                    const target = link.target as NodeData;
+                    if (source.x !== undefined && source.y !== undefined && target.x !== undefined && target.y !== undefined) {
+                    g.moveTo(source.x, source.y);
+                    g.lineTo(target.x, target.y);
+                    }
+                });
+                }}
+            />
+
+            {nodes.map((node) => (
+                <DraggableNode 
+                    key={node.id} 
+                    node={node} 
+                    simulation={simulation.current}
+                    onNodeClick={onNodeClick}
+                    onNodeRightClick={onNodeRightClick}
+                    viewportScale={viewport.scale} 
+                />
+            ))}
+        </Container>
+        </Stage>
+    </div>
   );
 };
 
@@ -142,12 +192,15 @@ interface DraggableNodeProps {
     simulation: d3.Simulation<NodeData, LinkData> | null;
     onNodeClick: (node: NodeData) => void;
     onNodeRightClick?: (node: NodeData) => void;
+    viewportScale: number; 
 }
 
-const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeClick }) => {
+const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeClick, onNodeRightClick, viewportScale }) => {
   const isDragging = useRef(false);
 
-  const onDragStart = () => {
+  const onDragStart = (e: any) => {
+    e.stopPropagation(); 
+    
     isDragging.current = true;
     if (simulation) {
         simulation.alphaTarget(0.3).restart();
@@ -158,7 +211,9 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeC
 
   const onDragMove = (e: any) => {
     if (isDragging.current) {
-      const newPosition = e.data ? e.data.global : e.global; 
+      const parent = e.currentTarget.parent; 
+      const newPosition = parent.toLocal(e.data.global);
+
       node.fx = newPosition.x;
       node.fy = newPosition.y;
     }
@@ -173,9 +228,15 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeC
     }
   };
 
-  const handleTap = () => {
+  const handleTap = (e: any) => {
+      e.stopPropagation(); 
       onNodeClick(node);
   }
+
+  const handleRightClick = (e: any) => {
+      e.stopPropagation(); 
+      if (onNodeRightClick) onNodeRightClick(node);
+  };
 
   return (
     <Container
@@ -187,6 +248,7 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeC
       onpointerup={onDragEnd}
       onpointerupoutside={onDragEnd}
       onpointertap={handleTap}
+      onrightclick={handleRightClick}
       cursor="pointer"
     >
       <Graphics
@@ -203,6 +265,7 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeC
         anchor={0.5} 
         y={NODE_RADIUS + 5} 
         style={TEXT_STYLE} 
+        scale={1} 
       />
     </Container>
   );
