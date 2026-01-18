@@ -37,6 +37,9 @@ const TEXT_STYLE = new PIXI.TextStyle({
   fontFamily: "monospace",
 });
 
+const MIDDLE_MOUSE_BUTTON = 1;
+const DRAG_THRESHOLD_PX = 5;
+
 const Visualizer: React.FC<VisualizerProps> = ({
   initialData,
   onNodeClick,
@@ -48,6 +51,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
   const [, setTick] = useState(0);
 
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
+
   const isPanning = useRef(false);
   const lastPanPosition = useRef({ x: 0, y: 0 });
 
@@ -130,7 +134,17 @@ const Visualizer: React.FC<VisualizerProps> = ({
     setViewport({ x: newX, y: newY, scale: newScale });
   };
 
+  const handleMouseDownCapture = (e: React.MouseEvent) => {
+    if (e.button === MIDDLE_MOUSE_BUTTON) {
+      e.preventDefault();
+    }
+  };
+
   const onStageDown = (e: any) => {
+    const btn = e?.data?.originalEvent?.button;
+
+    if (btn !== MIDDLE_MOUSE_BUTTON) return;
+
     isPanning.current = true;
     lastPanPosition.current = { x: e.client.x, y: e.client.y };
   };
@@ -153,11 +167,16 @@ const Visualizer: React.FC<VisualizerProps> = ({
     <div
       style={{ width: "100vw", height: "100vh", overflow: "hidden" }}
       onWheel={handleWheel}
+      onMouseDownCapture={handleMouseDownCapture}
     >
       <Stage
         width={dimensions.width}
         height={dimensions.height}
-        options={{ backgroundColor: BLACK_BG, antialias: true, resolution: 2 }}
+        options={{
+          backgroundColor: BLACK_BG,
+          antialias: true,
+          resolution: 2,
+        }}
         onPointerDown={onStageDown}
         onPointerMove={onStageMove}
         onPointerUp={onStageUp}
@@ -207,8 +226,6 @@ interface DraggableNodeProps {
   onNodeRightClick?: (node: NodeData) => void;
   viewportScale: number;
 }
-
-const DRAG_THRESHOLD_PX = 5;
 
 const DraggableNode: React.FC<DraggableNodeProps> = ({
   node,
@@ -271,10 +288,8 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({
   const handleTap = (e: any) => {
     e.stopPropagation();
 
-    // ❌ dragged => do not run click
     if (hasDraggedBeyondThreshold.current) return;
 
-    // ✅ real click
     onNodeClick(node);
   };
 
