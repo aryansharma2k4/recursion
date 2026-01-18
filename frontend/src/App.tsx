@@ -4,7 +4,7 @@ import { ReadDir } from "../wailsjs/go/main/App";
 
 function App() {
     //TODO: root_path different for unix and windows system
-  const ROOT_PATH = "C:"; 
+  const ROOT_PATH = "C:\\Users"; 
   
   const [graphData, setGraphData] = useState<{ nodes: NodeData[]; links: LinkData[] }>({
     nodes: [],
