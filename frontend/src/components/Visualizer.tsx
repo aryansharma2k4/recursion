@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Stage, Container, Graphics, Text } from '@pixi/react';
-import * as PIXI from 'pixi.js';
-import * as d3 from 'd3';
+import React, { useState, useEffect, useRef } from "react";
+import { Stage, Container, Graphics, Text } from "@pixi/react";
+import * as PIXI from "pixi.js";
+import * as d3 from "d3";
 
 export interface NodeData extends d3.SimulationNodeDatum {
   id: string;
   name: string;
-  type: 'folder' | 'file';
+  type: "folder" | "file";
   x?: number;
   y?: number;
   fx?: number | null;
@@ -32,12 +32,16 @@ const LINK_COLOR = 0x555555;
 const NODE_RADIUS = 20;
 
 const TEXT_STYLE = new PIXI.TextStyle({
-  fill: '#ffffff',
+  fill: "#ffffff",
   fontSize: 12,
-  fontFamily: 'monospace',
+  fontFamily: "monospace",
 });
 
-const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick, onNodeRightClick }) => {
+const Visualizer: React.FC<VisualizerProps> = ({
+  initialData,
+  onNodeClick,
+  onNodeRightClick,
+}) => {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [links, setLinks] = useState<LinkData[]>([]);
@@ -56,56 +60,64 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick, onNod
 
     setViewport({ x: w / 2, y: h / 2, scale: 1 });
 
-    simulation.current = d3.forceSimulation<NodeData, LinkData>()
-      .force('charge', d3.forceManyBody().strength(-300))
-      .force('link', d3.forceLink<NodeData, LinkData>().id((d: NodeData) => d.id).distance(100))
-      .force('center', d3.forceCenter(0, 0)) 
-      .force('collide', d3.forceCollide(NODE_RADIUS + 10));
+    simulation.current = d3
+      .forceSimulation<NodeData, LinkData>()
+      .force("charge", d3.forceManyBody().strength(-300))
+      .force(
+        "link",
+        d3
+          .forceLink<NodeData, LinkData>()
+          .id((d: NodeData) => d.id)
+          .distance(100)
+      )
+      .force("center", d3.forceCenter(0, 0))
+      .force("collide", d3.forceCollide(NODE_RADIUS + 10));
 
     const handleResize = () => {
-        setDimensions({ width: window.innerWidth, height: window.innerHeight });
-        simulation.current?.alpha(0.3).restart();
+      setDimensions({ width: window.innerWidth, height: window.innerHeight });
+      simulation.current?.alpha(0.3).restart();
     };
-    
-    window.addEventListener('resize', handleResize);
-    
-    simulation.current.on('tick', () => {
-       setTick(t => t + 1);
+
+    window.addEventListener("resize", handleResize);
+
+    simulation.current.on("tick", () => {
+      setTick((t) => t + 1);
     });
 
     return () => {
-        simulation.current?.stop();
-        window.removeEventListener('resize', handleResize);
+      simulation.current?.stop();
+      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
   useEffect(() => {
     if (!initialData || !simulation.current) return;
 
-    const existingNodesMap = new Map(nodes.map(n => [n.id, n]));
-    
-    const newNodes = initialData.nodes.map(n => {
-        if (existingNodesMap.has(n.id)) {
-            return existingNodesMap.get(n.id)!;
-        }
-        return { ...n };
+    const existingNodesMap = new Map(nodes.map((n) => [n.id, n]));
+
+    const newNodes = initialData.nodes.map((n) => {
+      if (existingNodesMap.has(n.id)) {
+        return existingNodesMap.get(n.id)!;
+      }
+      return { ...n };
     });
 
-    const newLinks = initialData.links.map(l => ({ ...l }));
+    const newLinks = initialData.links.map((l) => ({ ...l }));
 
     setNodes(newNodes);
     setLinks(newLinks);
 
     simulation.current.nodes(newNodes);
-    const linkForce = simulation.current.force('link') as d3.ForceLink<NodeData, LinkData>;
+    const linkForce = simulation.current.force(
+      "link"
+    ) as d3.ForceLink<NodeData, LinkData>;
     if (linkForce) linkForce.links(newLinks);
-    
+
     simulation.current.alpha(1).restart();
   }, [initialData]);
 
-
   const handleWheel = (e: React.WheelEvent) => {
-    const scaleFactor = 1.001 ** -e.deltaY; 
+    const scaleFactor = 1.001 ** -e.deltaY;
     const newScale = Math.min(Math.max(viewport.scale * scaleFactor, 0.1), 5);
 
     const rect = (e.target as Element).getBoundingClientRect();
@@ -119,123 +131,156 @@ const Visualizer: React.FC<VisualizerProps> = ({ initialData, onNodeClick, onNod
   };
 
   const onStageDown = (e: any) => {
-      isPanning.current = true;
-      lastPanPosition.current = { x: e.client.x, y: e.client.y };
+    isPanning.current = true;
+    lastPanPosition.current = { x: e.client.x, y: e.client.y };
   };
 
   const onStageMove = (e: any) => {
-      if (!isPanning.current) return;
-      
-      const dx = e.client.x - lastPanPosition.current.x;
-      const dy = e.client.y - lastPanPosition.current.y;
+    if (!isPanning.current) return;
 
-      setViewport(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
-      lastPanPosition.current = { x: e.client.x, y: e.client.y };
+    const dx = e.client.x - lastPanPosition.current.x;
+    const dy = e.client.y - lastPanPosition.current.y;
+
+    setViewport((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+    lastPanPosition.current = { x: e.client.x, y: e.client.y };
   };
 
   const onStageUp = () => {
-      isPanning.current = false;
+    isPanning.current = false;
   };
 
   return (
-    <div 
-        style={{ width: '100vw', height: '100vh', overflow: 'hidden' }} 
-        onWheel={handleWheel}
+    <div
+      style={{ width: "100vw", height: "100vh", overflow: "hidden" }}
+      onWheel={handleWheel}
     >
-        <Stage 
-        width={dimensions.width} 
-        height={dimensions.height} 
+      <Stage
+        width={dimensions.width}
+        height={dimensions.height}
         options={{ backgroundColor: BLACK_BG, antialias: true, resolution: 2 }}
         onPointerDown={onStageDown}
         onPointerMove={onStageMove}
         onPointerUp={onStageUp}
         onPointerLeave={onStageUp}
-        >
-        <Container 
-            x={viewport.x} 
-            y={viewport.y} 
-            scale={viewport.scale}
-        >
-            <Graphics
-                draw={(g) => {
-                g.clear();
-                g.lineStyle(2 / viewport.scale, LINK_COLOR, 1); 
-                links.forEach((link) => {
-                    const source = link.source as NodeData;
-                    const target = link.target as NodeData;
-                    if (source.x !== undefined && source.y !== undefined && target.x !== undefined && target.y !== undefined) {
-                    g.moveTo(source.x, source.y);
-                    g.lineTo(target.x, target.y);
-                    }
-                });
-                }}
-            />
+      >
+        <Container x={viewport.x} y={viewport.y} scale={viewport.scale}>
+          <Graphics
+            draw={(g) => {
+              g.clear();
+              g.lineStyle(2 / viewport.scale, LINK_COLOR, 1);
+              links.forEach((link) => {
+                const source = link.source as NodeData;
+                const target = link.target as NodeData;
+                if (
+                  source.x !== undefined &&
+                  source.y !== undefined &&
+                  target.x !== undefined &&
+                  target.y !== undefined
+                ) {
+                  g.moveTo(source.x, source.y);
+                  g.lineTo(target.x, target.y);
+                }
+              });
+            }}
+          />
 
-            {nodes.map((node) => (
-                <DraggableNode 
-                    key={node.id} 
-                    node={node} 
-                    simulation={simulation.current}
-                    onNodeClick={onNodeClick}
-                    onNodeRightClick={onNodeRightClick}
-                    viewportScale={viewport.scale} 
-                />
-            ))}
+          {nodes.map((node) => (
+            <DraggableNode
+              key={node.id}
+              node={node}
+              simulation={simulation.current}
+              onNodeClick={onNodeClick}
+              onNodeRightClick={onNodeRightClick}
+              viewportScale={viewport.scale}
+            />
+          ))}
         </Container>
-        </Stage>
+      </Stage>
     </div>
   );
 };
 
 interface DraggableNodeProps {
-    node: NodeData;
-    simulation: d3.Simulation<NodeData, LinkData> | null;
-    onNodeClick: (node: NodeData) => void;
-    onNodeRightClick?: (node: NodeData) => void;
-    viewportScale: number; 
+  node: NodeData;
+  simulation: d3.Simulation<NodeData, LinkData> | null;
+  onNodeClick: (node: NodeData) => void;
+  onNodeRightClick?: (node: NodeData) => void;
+  viewportScale: number;
 }
 
-const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeClick, onNodeRightClick, viewportScale }) => {
+const DRAG_THRESHOLD_PX = 5;
+
+const DraggableNode: React.FC<DraggableNodeProps> = ({
+  node,
+  simulation,
+  onNodeClick,
+  onNodeRightClick,
+  viewportScale,
+}) => {
   const isDragging = useRef(false);
 
+  const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
+  const hasDraggedBeyondThreshold = useRef(false);
+
   const onDragStart = (e: any) => {
-    e.stopPropagation(); 
-    
+    e.stopPropagation();
+
     isDragging.current = true;
+    hasDraggedBeyondThreshold.current = false;
+
+    pointerDownPos.current = { x: e.client.x, y: e.client.y };
+
     if (simulation) {
-        simulation.alphaTarget(0.3).restart();
-        if (node.x !== undefined) node.fx = node.x;
-        if (node.y !== undefined) node.fy = node.y;
+      simulation.alphaTarget(0.3).restart();
+      if (node.x !== undefined) node.fx = node.x;
+      if (node.y !== undefined) node.fy = node.y;
     }
   };
 
   const onDragMove = (e: any) => {
-    if (isDragging.current) {
-      const parent = e.currentTarget.parent; 
-      const newPosition = parent.toLocal(e.data.global);
+    if (!isDragging.current) return;
 
-      node.fx = newPosition.x;
-      node.fy = newPosition.y;
+    if (pointerDownPos.current) {
+      const dx = e.client.x - pointerDownPos.current.x;
+      const dy = e.client.y - pointerDownPos.current.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > DRAG_THRESHOLD_PX) {
+        hasDraggedBeyondThreshold.current = true;
+      }
     }
+
+    const parent = e.currentTarget.parent;
+    const newPosition = parent.toLocal(e.data.global);
+
+    node.fx = newPosition.x;
+    node.fy = newPosition.y;
   };
 
   const onDragEnd = () => {
     isDragging.current = false;
+    pointerDownPos.current = null;
+
     if (simulation) {
-        simulation.alphaTarget(0);
-        node.fx = null;
-        node.fy = null;
+      simulation.alphaTarget(0);
+      node.fx = null;
+      node.fy = null;
     }
   };
 
   const handleTap = (e: any) => {
-      e.stopPropagation(); 
-      onNodeClick(node);
-  }
+    e.stopPropagation();
+
+    // ❌ dragged => do not run click
+    if (hasDraggedBeyondThreshold.current) return;
+
+    // ✅ real click
+    onNodeClick(node);
+  };
 
   const handleRightClick = (e: any) => {
-      e.stopPropagation(); 
-      if (onNodeRightClick) onNodeRightClick(node);
+    e.stopPropagation();
+    if (onNodeRightClick) onNodeRightClick(node);
   };
 
   return (
@@ -254,18 +299,18 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ node, simulation, onNodeC
       <Graphics
         draw={(g) => {
           g.clear();
-          const color = node.type === 'folder' ? 0xFFA500 : 0x00AAFF;
+          const color = node.type === "folder" ? 0xffa500 : 0x00aaff;
           g.beginFill(color);
           g.drawCircle(0, 0, NODE_RADIUS);
           g.endFill();
         }}
       />
-      <Text 
-        text={node.name} 
-        anchor={0.5} 
-        y={NODE_RADIUS + 5} 
-        style={TEXT_STYLE} 
-        scale={1} 
+      <Text
+        text={node.name}
+        anchor={0.5}
+        y={NODE_RADIUS + 5}
+        style={TEXT_STYLE}
+        scale={1}
       />
     </Container>
   );
